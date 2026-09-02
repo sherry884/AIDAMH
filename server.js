@@ -427,6 +427,9 @@ async function handleAssessmentAnswer(to, selectedId, text, state) {
     // SAFETY-CRITICAL DEPRESSION QUESTION
     // --------------------------------------------------
 
+
+
+
     if (
         state.assessmentType === "depression" &&
         state.assessmentIndex === 8 &&
@@ -435,11 +438,11 @@ async function handleAssessmentAnswer(to, selectedId, text, state) {
         state.assessmentAnswers.push(response.score);
         state.assessmentScore += response.score;
 
-        state.step = "crisis";
-
-        await sendCrisisMessage(to);
+        await sendCrisisMessage(to, state);
         return;
     }
+
+
 
     // --------------------------------------------------
     // SAVE ANSWER
