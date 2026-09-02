@@ -1103,7 +1103,10 @@ function isCrisisMessage(text) {
     ]);
 }
 
-async function sendCrisisMessage(to) {
+
+async function sendCrisisMessage(to, state) {
+    state.step = "crisis_choice";
+
     await sendTextMessage(
         to,
         `I'm really concerned about what you've shared.
@@ -1119,6 +1122,21 @@ For urgent mental health help, call NHS 111 and select the mental health option,
 You can also call Samaritans on 116 123.
 
 If possible, tell someone you trust and don't stay alone.`
+    );
+
+    await sendButtons(
+        to,
+        `What would you like to do next?`,
+        [
+            {
+                id: "emergency_services",
+                title: "Emergency services"
+            },
+            {
+                id: "main_menu",
+                title: "Main menu"
+            }
+        ]
     );
 }
 
@@ -1199,11 +1217,9 @@ app.post("/webhook", async (req, res) => {
         // ==================================================
 
         if (isCrisisMessage(text)) {
-            state.step = "crisis";
-            await sendCrisisMessage(from);
+            await sendCrisisMessage(from, state);
             return;
         }
-
         // ==================================================
         // RESTART COMMAND
         // ==================================================
@@ -2069,11 +2085,61 @@ For example: Think about the last time you had your diabetes under control.`
         }
 
         // ==================================================
-        // CRISIS STATE
+
+
+
+        // ==================================================
+        // CRISIS CHOICE
         // ==================================================
 
-        if (state.step === "crisis") {
-            await sendCrisisMessage(from);
+        if (state.step === "crisis_choice") {
+
+            if (selectedId === "emergency_services") {
+                await sendTextMessage(
+                    from,
+                    `If you are in immediate danger, please call 999 now.
+
+For urgent mental health help, call NHS 111 and select the mental health option, or ask for an urgent GP appointment.
+
+You can also call Samaritans on 116 123.`
+                );
+
+                await sendButtons(
+                    from,
+                    `What would you like to do next?`,
+                    [
+                        {
+                            id: "main_menu",
+                            title: "Main menu"
+                        }
+                    ]
+                );
+
+                return;
+            }
+
+            if (selectedId === "main_menu") {
+                state.step = "main_menu";
+
+                await sendMainMenu(from);
+                return;
+            }
+
+            await sendButtons(
+                from,
+                `Please choose an option below.`,
+                [
+                    {
+                        id: "emergency_services",
+                        title: "Emergency services"
+                    },
+                    {
+                        id: "main_menu",
+                        title: "Main menu"
+                    }
+                ]
+            );
+
             return;
         }
 
