@@ -24,7 +24,13 @@ function getState(user) {
             gratitudeIndex: 0,
             gratitudeAnswers: [],
             jokeIndex: 0,
-            smartGoal: {}
+            smartGoal: {},
+
+            // TEST MYSELF
+            assessmentType: "",
+            assessmentIndex: 0,
+            assessmentScore: 0,
+            assessmentAnswers: []
         };
     }
 
@@ -40,11 +46,18 @@ function resetUser(user) {
         gratitudeIndex: 0,
         gratitudeAnswers: [],
         jokeIndex: 0,
-        smartGoal: {}
+        smartGoal: {},
+
+        // TEST MYSELF
+        assessmentType: "",
+        assessmentIndex: 0,
+        assessmentScore: 0,
+        assessmentAnswers: []
     };
 
     return userState[user];
 }
+
 
 function normalise(value) {
     return String(value || "").trim().toLowerCase();
@@ -218,6 +231,247 @@ async function sendMainMenu(to) {
         "Support areas"
     );
 }
+
+
+// ======================================================
+// TEST MYSELF - ANXIETY & DEPRESSION
+// ======================================================
+
+const anxietyQuestions = [
+    "Feeling nervous, anxious or on edge",
+    "Not being able to stop or control worrying",
+    "Worrying too much about different things",
+    "Trouble relaxing",
+    "Being so restless that it is hard to sit still",
+    "Becoming easily annoyed or irritable",
+    "Feeling afraid as if something awful might happen"
+];
+
+const depressionQuestions = [
+    "Little interest or pleasure in doing things",
+    "Feeling down, depressed, or hopeless",
+    "Trouble falling or staying asleep, or sleeping too much",
+    "Feeling tired or having little energy",
+    "Poor appetite or overeating",
+    "Feeling bad about yourself — or that you are a failure or have let yourself or your family down",
+    "Trouble concentrating on things, such as reading the newspaper or watching television",
+    "Moving or speaking so slowly that other people could have noticed? Or the opposite — being so fidgety or restless that you have been moving around a lot more than usual",
+    "Thoughts that you would be better off dead or of hurting yourself in some way"
+];
+
+const assessmentResponses = [
+    {
+        id: "score_0",
+        title: "Not at all",
+        score: 0
+    },
+    {
+        id: "score_1",
+        title: "Several days",
+        score: 1
+    },
+    {
+        id: "score_2",
+        title: "More than half the days",
+        score: 2
+    },
+    {
+        id: "score_3",
+        title: "Nearly every day",
+        score: 3
+    }
+];
+
+async function sendTestMyselfMenu(to) {
+    await sendList(
+        to,
+        `Let's check in with how you've been feeling.
+
+Which self-check would you like to complete?`,
+        "Choose test",
+        [
+            {
+                id: "test_anxiety",
+                title: "Anxiety"
+            },
+            {
+                id: "test_depression",
+                title: "Depression"
+            }
+        ],
+        "Self-checks"
+    );
+}
+
+async function startAnxietyAssessment(to, state) {
+    state.assessmentType = "anxiety";
+    state.assessmentIndex = 0;
+    state.assessmentScore = 0;
+    state.assessmentAnswers = [];
+    state.step = "assessment_question";
+
+    await sendTextMessage(
+        to,
+        `Anxiety self-check
+
+Over the last 2 weeks, how often have you been bothered by the following?
+
+There are no right or wrong answers.
+
+Please choose the answer that best describes your experience.`
+    );
+
+    await sendAssessmentQuestion(to, state);
+}
+
+async function startDepressionAssessment(to, state) {
+    state.assessmentType = "depression";
+    state.assessmentIndex = 0;
+    state.assessmentScore = 0;
+    state.assessmentAnswers = [];
+    state.step = "assessment_question";
+
+    await sendTextMessage(
+        to,
+        `Depression self-check
+
+Over the last 2 weeks, how often have you been bothered by the following?
+
+There are no right or wrong answers.
+
+Please choose the answer that best describes your experience.`
+    );
+
+    await sendAssessmentQuestion(to, state);
+}
+
+async function sendAssessmentQuestion(to, state) {
+    const questions =
+        state.assessmentType === "anxiety"
+            ? anxietyQuestions
+            : depressionQuestions;
+
+    const questionNumber = state.assessmentIndex + 1;
+
+    await sendList(
+        to,
+        `Question ${questionNumber} of ${questions.length}
+
+${questions[state.assessmentIndex]}
+
+Over the last 2 weeks, how often have you been bothered by this?`,
+        "Choose answer",
+        assessmentResponses.map(response => ({
+            id: response.id,
+            title: response.title
+        })),
+        "Your answer"
+    );
+}
+
+
+
+async function finishAssessment(to, state) {
+    const type =
+        state.assessmentType === "anxiety"
+            ? "Anxiety"
+            : "Depression";
+
+    const totalQuestions =
+        state.assessmentType === "anxiety"
+            ? anxietyQuestions.length
+            : depressionQuestions.length;
+
+    state.step = "assessment_complete";
+
+    await sendTextMessage(
+        to,
+        `${type} self-check complete.
+
+You answered all ${totalQuestions} questions.
+
+Your total score is: ${state.assessmentScore}
+
+This self-check is not a diagnosis. If you are concerned about how you are feeling, consider speaking with a healthcare professional.`
+    );
+
+    await sendButtons(
+        to,
+        `What would you like to do next?`,
+        [
+            {
+                id: "test_again",
+                title: "Test again"
+            },
+            {
+                id: "main_menu",
+                title: "Main menu"
+            }
+        ]
+    );
+}
+
+
+
+async function handleAssessmentAnswer(to, selectedId, text, state) {
+    const response = assessmentResponses.find(
+        response => response.id === selectedId
+    );
+
+    if (!response) {
+        await sendAssessmentQuestion(to, state);
+        return;
+    }
+
+    // --------------------------------------------------
+    // SAFETY-CRITICAL DEPRESSION QUESTION
+    // --------------------------------------------------
+
+    if (
+        state.assessmentType === "depression" &&
+        state.assessmentIndex === 8 &&
+        response.score > 0
+    ) {
+        state.assessmentAnswers.push(response.score);
+        state.assessmentScore += response.score;
+
+        state.step = "crisis";
+
+        await sendCrisisMessage(to);
+        return;
+    }
+
+    // --------------------------------------------------
+    // SAVE ANSWER
+    // --------------------------------------------------
+
+    state.assessmentAnswers.push(response.score);
+    state.assessmentScore += response.score;
+
+    state.assessmentIndex += 1;
+
+    const questions =
+        state.assessmentType === "anxiety"
+            ? anxietyQuestions
+            : depressionQuestions;
+
+    // --------------------------------------------------
+    // MORE QUESTIONS
+    // --------------------------------------------------
+
+    if (state.assessmentIndex < questions.length) {
+        await sendAssessmentQuestion(to, state);
+        return;
+    }
+
+    // --------------------------------------------------
+    // ASSESSMENT COMPLETE
+    // --------------------------------------------------
+
+    await finishAssessment(to, state);
+}
+
+
 
 // ======================================================
 // EMOTIONS
@@ -1063,12 +1317,9 @@ app.post("/webhook", async (req, res) => {
             }
 
             if (selectedId === "test_myself") {
-                await sendTextMessage(
-                    from,
-                    `The Anxiety and Depression self-check flow will be connected after we finish the Emotions framework.`
-                );
+                state.step = "test_myself_menu";
 
-                await sendMainMenu(from);
+                await sendTestMyselfMenu(from);
                 return;
             }
 
@@ -1117,6 +1368,92 @@ app.post("/webhook", async (req, res) => {
             await sendMainMenu(from);
             return;
         }
+
+
+
+
+        // ======================================================
+        // TEST MYSELF MENU
+        // ======================================================
+
+        if (state.step === "test_myself_menu") {
+
+            if (selectedId === "test_anxiety") {
+                await startAnxietyAssessment(from, state);
+                return;
+            }
+
+            if (selectedId === "test_depression") {
+                await startDepressionAssessment(from, state);
+                return;
+            }
+
+            await sendTestMyselfMenu(from);
+            return;
+        }
+
+
+
+
+        // ======================================================
+        // TEST MYSELF - QUESTION HANDLER
+        // ======================================================
+
+        if (state.step === "assessment_question") {
+
+            await handleAssessmentAnswer(
+                from,
+                selectedId,
+                text,
+                state
+            );
+
+            return;
+        }
+
+
+
+
+        // ======================================================
+        // TEST MYSELF - COMPLETED
+        // ======================================================
+
+        if (state.step === "assessment_complete") {
+
+            if (selectedId === "test_again") {
+                await sendTestMyselfMenu(from);
+                state.step = "test_myself_menu";
+                return;
+            }
+
+            if (selectedId === "main_menu") {
+                state.step = "main_menu";
+                await sendMainMenu(from);
+                return;
+            }
+
+            await sendButtons(
+                from,
+                `Please choose what you would like to do next.`,
+                [
+                    {
+                        id: "test_again",
+                        title: "Test again"
+                    },
+                    {
+                        id: "main_menu",
+                        title: "Main menu"
+                    }
+                ]
+            );
+
+            return;
+        }
+
+
+
+
+
 
         // ==================================================
         // EMOTION SHARING
