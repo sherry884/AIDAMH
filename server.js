@@ -25,6 +25,7 @@ function getState(user) {
             gratitudeAnswers: [],
             jokeIndex: 0,
             smartGoal: {},
+            kindnessResponse: "",
 
             // TEST MYSELF
             assessmentType: "",
@@ -47,6 +48,7 @@ function resetUser(user) {
         gratitudeAnswers: [],
         jokeIndex: 0,
         smartGoal: {},
+        kindnessResponse: "",
 
         // TEST MYSELF
         assessmentType: "",
@@ -1073,6 +1075,94 @@ You've broken your goal into clear and manageable steps.`
     }
 }
 
+
+
+
+
+// ======================================================
+// RELATIONSHIPS
+// ======================================================
+
+async function sendRelationshipsMenu(to) {
+    await sendList(
+        to,
+        `Relationships`,
+        "Choose option",
+        [
+            {
+                id: "join_diabetes_group",
+                title: "Join a diabetes group",
+                description: "Connect with other people with diabetes"
+            },
+            {
+                id: "practice_kindness",
+                title: "Practice kindness",
+                description: "Try a simple kindness activity"
+            }
+        ],
+        "Relationships"
+    );
+}
+
+
+async function sendJoinDiabetesGroup(to) {
+    await sendTextMessage(
+        to,
+        `Join a diabetes group
+
+Join other diabetic patients on WhatsApp group or connect chatbot users on a chat forum.`
+    );
+
+    await sendButtons(
+        to,
+        `What would you like to do next?`,
+        [
+            {
+                id: "main_menu",
+                title: "Main menu"
+            }
+        ]
+    );
+}
+
+
+async function sendPracticeKindness(to, state) {
+    state.step = "kindness_response";
+
+    await sendTextMessage(
+        to,
+        `Practice kindness
+
+Today I was kind when …`
+    );
+}
+
+
+async function sendKindnessActions(to) {
+    await sendList(
+        to,
+        `Random Acts of Kindness
+
+Choose one:`,
+        "Choose action",
+        [
+            {
+                id: "kindness_snack",
+                title: "Share a snack"
+            },
+            {
+                id: "kindness_message",
+                title: "Text someone a positive message"
+            },
+            {
+                id: "kindness_thank_you",
+                title: "Send a thank you note"
+            }
+        ],
+        "Kindness actions"
+    );
+}
+
 // ======================================================
 // CLOSING
 // ======================================================
@@ -1343,6 +1433,13 @@ app.post("/webhook", async (req, res) => {
             }
 
             if (selectedId === "relationships") {
+                state.step = "relationships_menu";
+
+                await sendRelationshipsMenu(from);
+                return;
+            }
+
+            if (selectedId === "relationships") {
                 await sendTextMessage(
                     from,
                     `The Relationships framework will be connected after the Emotions section.`
@@ -1470,7 +1567,87 @@ app.post("/webhook", async (req, res) => {
         }
 
 
+        // ======================================================
+        // RELATIONSHIPS MENU
+        // ======================================================
 
+        if (state.step === "relationships_menu") {
+
+            if (selectedId === "join_diabetes_group") {
+                await sendJoinDiabetesGroup(from);
+                state.step = "relationships_complete";
+                return;
+            }
+
+            if (selectedId === "practice_kindness") {
+                await sendPracticeKindness(from, state);
+                return;
+            }
+
+            await sendRelationshipsMenu(from);
+            return;
+        }
+
+
+
+        // ======================================================
+        // KINDNESS RESPONSE
+        // ======================================================
+
+        if (state.step === "kindness_response") {
+
+            state.kindnessResponse = text;
+
+            await sendTextMessage(
+                from,
+                `Thank you for sharing that. 💙`
+            );
+
+            state.step = "kindness_actions";
+
+            await sendKindnessActions(from);
+            return;
+        }
+
+
+
+        // ======================================================
+        // KINDNESS ACTIONS
+        // ======================================================
+
+        if (state.step === "kindness_actions") {
+
+            if (
+                [
+                    "kindness_snack",
+                    "kindness_message",
+                    "kindness_thank_you"
+                ].includes(selectedId)
+            ) {
+
+                await sendTextMessage(
+                    from,
+                    `That's a lovely choice. Small acts of kindness can make a meaningful difference.`
+                );
+
+                await sendButtons(
+                    from,
+                    `What would you like to do next?`,
+                    [
+                        {
+                            id: "main_menu",
+                            title: "Main menu"
+                        }
+                    ]
+                );
+
+                state.step = "relationships_complete";
+                return;
+            }
+
+            await sendKindnessActions(from);
+            return;
+        }
 
 
 
